@@ -81,7 +81,9 @@ namespace uWS {
 struct ZlibContext {};
 struct InflationStream {
     std::optional<std::string_view> inflate(ZlibContext * /*zlibContext*/, std::string_view compressed, size_t maxPayloadLength, bool /*reset*/) {
-        return compressed.substr(0, std::min(maxPayloadLength, compressed.length()));
+        auto compressedLength = compressed.length();
+        auto min = maxPayloadLength < compressedLength ? maxPayloadLength : compressedLength;
+        return compressed.substr(0, min);
     }
     InflationStream(CompressOptions /*compressOptions*/) {
     }
