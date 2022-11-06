@@ -144,7 +144,7 @@ extern "C"
     } uws_socket_behavior_t;
 
     DLL_EXPORT typedef void (*uws_listen_handler)(struct us_listen_socket_t *listen_socket, uws_app_listen_config_t config, void *user_data);
-    DLL_EXPORT typedef void (*uws_listen_domain_handler)(struct us_listen_socket_t *listen_socket, const char* domain, int options, void *user_data);
+    DLL_EXPORT typedef void (*uws_listen_domain_handler)(struct us_listen_socket_t *listen_socket, const char* domain, size_t domain_length, int options, void *user_data);
     DLL_EXPORT typedef void (*uws_method_handler)(uws_res_t *response, uws_req_t *request, void *user_data);
     DLL_EXPORT typedef void (*uws_filter_handler)(uws_res_t *response, int, void *user_data);
     DLL_EXPORT typedef void (*uws_missing_server_handler)(const char *hostname, size_t hostname_length, void *user_data);
@@ -167,9 +167,9 @@ extern "C"
 
     DLL_EXPORT void uws_app_listen(int ssl, uws_app_t *app, int port, uws_listen_handler handler, void *user_data);
     DLL_EXPORT void uws_app_listen_with_config(int ssl, uws_app_t *app, uws_app_listen_config_t config, uws_listen_handler handler, void *user_data);
-    DLL_EXPORT void uws_app_listen_domain(int ssl, uws_app_t *app, const char *domain, uws_listen_domain_handler handler, void *user_data);
-    DLL_EXPORT void uws_app_listen_domain_with_options(int ssl, uws_app_t *app, const char *domain, int options, uws_listen_domain_handler handler, void *user_data);
-    DLL_EXPORT void uws_app_domain(int ssl, uws_app_t *app, const char* server_name);
+    DLL_EXPORT void uws_app_listen_domain(int ssl, uws_app_t *app, const char *domain, size_t domain_length, uws_listen_domain_handler handler, void *user_data);
+    DLL_EXPORT void uws_app_listen_domain_with_options(int ssl, uws_app_t *app, const char *domain,size_t domain_length, int options, uws_listen_domain_handler handler, void *user_data);
+    DLL_EXPORT void uws_app_domain(int ssl, uws_app_t *app, const char* server_name, size_t server_name_length);
 
     DLL_EXPORT bool uws_constructor_failed(int ssl, uws_app_t *app);
     DLL_EXPORT unsigned int uws_num_subscribers(int ssl, uws_app_t *app, const char *topic, size_t topic_length);

@@ -350,59 +350,59 @@ extern "C"
     }
 
     /* callback, path to unix domain socket */
-    void uws_app_listen_domain(int ssl, uws_app_t *app, const char *domain, uws_listen_domain_handler handler, void *user_data)
+    void uws_app_listen_domain(int ssl, uws_app_t *app, const char *domain, size_t domain_length, uws_listen_domain_handler handler, void *user_data)
     {
 
         if (ssl)
         {
             uWS::SSLApp *uwsApp = (uWS::SSLApp *)app;
-            uwsApp->listen([handler, domain, user_data](struct us_listen_socket_t *listen_socket)
-                           { handler((struct us_listen_socket_t *)listen_socket, domain, 0, user_data); },
-                           domain);
+            uwsApp->listen([handler, domain, domain_length, user_data](struct us_listen_socket_t *listen_socket)
+                           { handler((struct us_listen_socket_t *)listen_socket, domain, domain_length, 0, user_data); },
+                           std::string(domain, domain_length));
         }
         else
         {
             uWS::App *uwsApp = (uWS::App *)app;
 
-            uwsApp->listen([handler, domain, user_data](struct us_listen_socket_t *listen_socket)
-                           { handler((struct us_listen_socket_t *)listen_socket, domain, 0, user_data); },
-                           domain);
+            uwsApp->listen([handler, domain, domain_length, user_data](struct us_listen_socket_t *listen_socket)
+                           { handler((struct us_listen_socket_t *)listen_socket, domain, domain_length, 0, user_data); },
+                           std::string(domain, domain_length));
         }
     }
 
     /* callback, path to unix domain socket */
-    void uws_app_listen_domain_with_options(int ssl, uws_app_t *app, const char *domain, int options, uws_listen_domain_handler handler, void *user_data)
+    void uws_app_listen_domain_with_options(int ssl, uws_app_t *app, const char *domain, size_t domain_length, int options, uws_listen_domain_handler handler, void *user_data)
     {
 
         if (ssl)
         {
             uWS::SSLApp *uwsApp = (uWS::SSLApp *)app;
             uwsApp->listen(
-                options, [handler, domain, options, user_data](struct us_listen_socket_t *listen_socket)
-                { handler((struct us_listen_socket_t *)listen_socket, domain, options, user_data); },
-                domain);
+                options, [handler, domain, domain_length, options, user_data](struct us_listen_socket_t *listen_socket)
+                { handler((struct us_listen_socket_t *)listen_socket, domain, domain_length, options, user_data); },
+                std::string(domain, domain_length));
         }
         else
         {
             uWS::App *uwsApp = (uWS::App *)app;
 
             uwsApp->listen(
-                options, [handler, domain, options, user_data](struct us_listen_socket_t *listen_socket)
-                { handler((struct us_listen_socket_t *)listen_socket, domain, options, user_data); },
-                domain);
+                options, [handler, domain, domain_length, options, user_data](struct us_listen_socket_t *listen_socket)
+                { handler((struct us_listen_socket_t *)listen_socket, domain, domain_length, options, user_data); },
+                std::string(domain, domain_length));
         }
     }
-    void uws_app_domain(int ssl, uws_app_t *app, const char *server_name)
+    void uws_app_domain(int ssl, uws_app_t *app, const char *server_name, size_t server_name_length)
     {
         if (ssl)
         {
             uWS::SSLApp *uwsApp = (uWS::SSLApp *)app;
-            uwsApp->domain(server_name);
+            uwsApp->domain(std::string(server_name, server_name_length));
         }
         else
         {
             uWS::App *uwsApp = (uWS::App *)app;
-            uwsApp->domain(server_name);
+            uwsApp->domain(std::string(server_name, server_name_length));
         }
     }
     void uws_app_destroy(int ssl, uws_app_t *app)
