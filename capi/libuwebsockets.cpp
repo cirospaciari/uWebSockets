@@ -545,7 +545,7 @@ extern "C"
         }
     }
 
-    void uws_ws(int ssl, uws_app_t *app, const char *pattern, uws_socket_behavior_t behavior)
+    void uws_ws(int ssl, uws_app_t *app, const char *pattern, uws_socket_behavior_t behavior, void* user_data)
     {
         if (ssl)
         {
@@ -561,39 +561,39 @@ extern "C"
             };
 
             if (behavior.upgrade)
-                generic_handler.upgrade = [behavior](auto *res, auto *req, auto *context)
+                generic_handler.upgrade = [behavior, user_data](auto *res, auto *req, auto *context)
                 {
-                    behavior.upgrade((uws_res_t *)res, (uws_req_t *)req, (uws_socket_context_t *)context);
+                    behavior.upgrade((uws_res_t *)res, (uws_req_t *)req, (uws_socket_context_t *)context, user_data);
                 };
             if (behavior.open)
-                generic_handler.open = [behavior](auto *ws)
+                generic_handler.open = [behavior, user_data](auto *ws)
                 {
-                    behavior.open((uws_websocket_t *)ws);
+                    behavior.open((uws_websocket_t *)ws, user_data);
                 };
             if (behavior.message)
-                generic_handler.message = [behavior](auto *ws, auto message, auto opcode)
+                generic_handler.message = [behavior, user_data](auto *ws, auto message, auto opcode)
                 {
-                    behavior.message((uws_websocket_t *)ws, message.data(), message.length(), (uws_opcode_t)opcode);
+                    behavior.message((uws_websocket_t *)ws, message.data(), message.length(), (uws_opcode_t)opcode, user_data);
                 };
             if (behavior.drain)
-                generic_handler.drain = [behavior](auto *ws)
+                generic_handler.drain = [behavior, user_data](auto *ws)
                 {
-                    behavior.drain((uws_websocket_t *)ws);
+                    behavior.drain((uws_websocket_t *)ws, user_data);
                 };
             if (behavior.ping)
-                generic_handler.ping = [behavior](auto *ws, auto message)
+                generic_handler.ping = [behavior, user_data](auto *ws, auto message)
                 {
-                    behavior.ping((uws_websocket_t *)ws, message.data(), message.length());
+                    behavior.ping((uws_websocket_t *)ws, message.data(), message.length(), user_data);
                 };
             if (behavior.pong)
-                generic_handler.pong = [behavior](auto *ws, auto message)
+                generic_handler.pong = [behavior, user_data](auto *ws, auto message)
                 {
-                    behavior.pong((uws_websocket_t *)ws, message.data(), message.length());
+                    behavior.pong((uws_websocket_t *)ws, message.data(), message.length(), user_data);
                 };
             if (behavior.close)
-                generic_handler.close = [behavior](auto *ws, int code, auto message)
+                generic_handler.close = [behavior, user_data](auto *ws, int code, auto message)
                 {
-                    behavior.close((uws_websocket_t *)ws, code, message.data(), message.length());
+                    behavior.close((uws_websocket_t *)ws, code, message.data(), message.length(), user_data);
                 };
             uWS::SSLApp *uwsApp = (uWS::SSLApp *)app;
 
@@ -613,39 +613,39 @@ extern "C"
             };
 
             if (behavior.upgrade)
-                generic_handler.upgrade = [behavior](auto *res, auto *req, auto *context)
+                generic_handler.upgrade = [behavior, user_data](auto *res, auto *req, auto *context)
                 {
-                    behavior.upgrade((uws_res_t *)res, (uws_req_t *)req, (uws_socket_context_t *)context);
+                    behavior.upgrade((uws_res_t *)res, (uws_req_t *)req, (uws_socket_context_t *)context, user_data);
                 };
             if (behavior.open)
-                generic_handler.open = [behavior](auto *ws)
+                generic_handler.open = [behavior, user_data](auto *ws)
                 {
-                    behavior.open((uws_websocket_t *)ws);
+                    behavior.open((uws_websocket_t *)ws, user_data);
                 };
             if (behavior.message)
-                generic_handler.message = [behavior](auto *ws, auto message, auto opcode)
+                generic_handler.message = [behavior, user_data](auto *ws, auto message, auto opcode)
                 {
-                    behavior.message((uws_websocket_t *)ws, message.data(), message.length(), (uws_opcode_t)opcode);
+                    behavior.message((uws_websocket_t *)ws, message.data(), message.length(), (uws_opcode_t)opcode, user_data);
                 };
             if (behavior.drain)
-                generic_handler.drain = [behavior](auto *ws)
+                generic_handler.drain = [behavior, user_data](auto *ws)
                 {
-                    behavior.drain((uws_websocket_t *)ws);
+                    behavior.drain((uws_websocket_t *)ws, user_data);
                 };
             if (behavior.ping)
-                generic_handler.ping = [behavior](auto *ws, auto message)
+                generic_handler.ping = [behavior, user_data](auto *ws, auto message)
                 {
-                    behavior.ping((uws_websocket_t *)ws, message.data(), message.length());
+                    behavior.ping((uws_websocket_t *)ws, message.data(), message.length(), user_data);
                 };
             if (behavior.pong)
-                generic_handler.pong = [behavior](auto *ws, auto message)
+                generic_handler.pong = [behavior, user_data](auto *ws, auto message)
                 {
-                    behavior.pong((uws_websocket_t *)ws, message.data(), message.length());
+                    behavior.pong((uws_websocket_t *)ws, message.data(), message.length(), user_data);
                 };
             if (behavior.close)
-                generic_handler.close = [behavior](auto *ws, int code, auto message)
+                generic_handler.close = [behavior, user_data](auto *ws, int code, auto message)
                 {
-                    behavior.close((uws_websocket_t *)ws, code, message.data(), message.length());
+                    behavior.close((uws_websocket_t *)ws, code, message.data(), message.length(), user_data);
                 };
             uWS::App *uwsApp = (uWS::App *)app;
             uwsApp->ws<void *>(pattern, std::move(generic_handler));

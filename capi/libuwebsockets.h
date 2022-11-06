@@ -112,11 +112,11 @@ extern "C"
     DLL_EXPORT typedef struct uws_socket_context_s uws_socket_context_t;
     DLL_EXPORT typedef struct uws_websocket_s uws_websocket_t;
 
-    DLL_EXPORT typedef void (*uws_websocket_handler)(uws_websocket_t *ws);
-    DLL_EXPORT typedef void (*uws_websocket_message_handler)(uws_websocket_t *ws, const char *message, size_t length, uws_opcode_t opcode);
-    DLL_EXPORT typedef void (*uws_websocket_ping_pong_handler)(uws_websocket_t *ws, const char *message, size_t length);
-    DLL_EXPORT typedef void (*uws_websocket_close_handler)(uws_websocket_t *ws, int code, const char *message, size_t length);
-    DLL_EXPORT typedef void (*uws_websocket_upgrade_handler)(uws_res_t *response, uws_req_t *request, uws_socket_context_t *context);
+    DLL_EXPORT typedef void (*uws_websocket_handler)(uws_websocket_t *ws, void* user_data);
+    DLL_EXPORT typedef void (*uws_websocket_message_handler)(uws_websocket_t *ws, const char *message, size_t length, uws_opcode_t opcode, void* user_data);
+    DLL_EXPORT typedef void (*uws_websocket_ping_pong_handler)(uws_websocket_t *ws, const char *message, size_t length, void* user_data);
+    DLL_EXPORT typedef void (*uws_websocket_close_handler)(uws_websocket_t *ws, int code, const char *message, size_t length, void* user_data);
+    DLL_EXPORT typedef void (*uws_websocket_upgrade_handler)(uws_res_t *response, uws_req_t *request, uws_socket_context_t *context, void* user_data);
 
     DLL_EXPORT typedef struct
     {
@@ -182,7 +182,7 @@ extern "C"
     DLL_EXPORT void uws_filter(int ssl, uws_app_t *app, uws_filter_handler handler, void *user_data);
 
     //WebSocket
-    DLL_EXPORT void uws_ws(int ssl, uws_app_t *app, const char *pattern, uws_socket_behavior_t behavior);
+    DLL_EXPORT void uws_ws(int ssl, uws_app_t *app, const char *pattern, uws_socket_behavior_t behavior, void* user_data);
     DLL_EXPORT void *uws_ws_get_user_data(int ssl, uws_websocket_t *ws);
     DLL_EXPORT void uws_ws_close(int ssl, uws_websocket_t *ws);
     DLL_EXPORT uws_sendstatus_t uws_ws_send(int ssl, uws_websocket_t *ws, const char *message, size_t length, uws_opcode_t opcode);
