@@ -465,33 +465,33 @@ extern "C"
         uWS::App *uwsApp = (uWS::App *)app;
         return uwsApp->getNativeHandle();
     }
-    void uws_remove_server_name(int ssl, uws_app_t *app, const char *hostname_pattern)
+    void uws_remove_server_name(int ssl, uws_app_t *app, const char *hostname_pattern, size_t hostname_pattern_length)
     {
         if (ssl)
         {
             uWS::SSLApp *uwsApp = (uWS::SSLApp *)app;
-            uwsApp->removeServerName(hostname_pattern);
+            uwsApp->removeServerName(std::string(hostname_pattern, hostname_pattern_length));
         }
         else
         {
             uWS::App *uwsApp = (uWS::App *)app;
-            uwsApp->removeServerName(hostname_pattern);
+            uwsApp->removeServerName(std::string(hostname_pattern, hostname_pattern_length));
         }
     }
-    void uws_add_server_name(int ssl, uws_app_t *app, const char *hostname_pattern)
+    void uws_add_server_name(int ssl, uws_app_t *app, const char *hostname_pattern, size_t hostname_pattern_length)
     {
         if (ssl)
         {
             uWS::SSLApp *uwsApp = (uWS::SSLApp *)app;
-            uwsApp->addServerName(hostname_pattern);
+            uwsApp->addServerName(std::string(hostname_pattern, hostname_pattern_length));
         }
         else
         {
             uWS::App *uwsApp = (uWS::App *)app;
-            uwsApp->addServerName(hostname_pattern);
+            uwsApp->addServerName(std::string(hostname_pattern, hostname_pattern_length));
         }
     }
-    void uws_add_server_name_with_options(int ssl, uws_app_t *app, const char *hostname_pattern, struct us_socket_context_options_t options)
+    void uws_add_server_name_with_options(int ssl, uws_app_t *app, const char *hostname_pattern, size_t hostname_pattern_length, struct us_socket_context_options_t options)
     {
         uWS::SocketContextOptions sco;
         sco.ca_file_name = options.ca_file_name;
@@ -504,12 +504,12 @@ extern "C"
         if (ssl)
         {
             uWS::SSLApp *uwsApp = (uWS::SSLApp *)app;
-            uwsApp->addServerName(hostname_pattern, sco);
+            uwsApp->addServerName(std::string(hostname_pattern, hostname_pattern_length), sco);
         }
         else
         {
             uWS::App *uwsApp = (uWS::App *)app;
-            uwsApp->addServerName(hostname_pattern, sco);
+            uwsApp->addServerName(std::string(hostname_pattern, hostname_pattern_length), sco);
         }
     }
 
@@ -519,13 +519,13 @@ extern "C"
         {
             uWS::SSLApp *uwsApp = (uWS::SSLApp *)app;
             uwsApp->missingServerName([handler, user_data](auto hostname)
-                                      { handler(hostname, user_data); });
+                                      { handler(hostname, strlen(hostname), user_data); });
         }
         else
         {
             uWS::App *uwsApp = (uWS::App *)app;
             uwsApp->missingServerName([handler, user_data](auto hostname)
-                                      { handler(hostname, user_data); });
+                                      { handler(hostname, strlen(hostname), user_data); });
         }
     }
     void uws_filter(int ssl, uws_app_t *app, uws_filter_handler handler, void *user_data)
