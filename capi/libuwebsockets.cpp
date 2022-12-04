@@ -693,10 +693,10 @@ extern "C"
         if (ssl)
         {
             uWS::WebSocket<true, true, void *> *uws = (uWS::WebSocket<true, true, void *> *)ws;
-            return (uws_sendstatus_t)uws->send(std::string_view(message), (uWS::OpCode)(unsigned char)opcode, compress, fin);
+            return (uws_sendstatus_t)uws->send(std::string_view(message, length), (uWS::OpCode)(unsigned char)opcode, compress, fin);
         }
         uWS::WebSocket<false, true, void *> *uws = (uWS::WebSocket<false, true, void *> *)ws;
-        return (uws_sendstatus_t)uws->send(std::string_view(message), (uWS::OpCode)(unsigned char)opcode, compress, fin);
+        return (uws_sendstatus_t)uws->send(std::string_view(message, length), (uWS::OpCode)(unsigned char)opcode, compress, fin);
     }
 
     uws_sendstatus_t uws_ws_send_fragment(int ssl, uws_websocket_t *ws, const char *message, size_t length, bool compress)
@@ -714,10 +714,10 @@ extern "C"
         if (ssl)
         {
             uWS::WebSocket<true, true, void *> *uws = (uWS::WebSocket<true, true, void *> *)ws;
-            return (uws_sendstatus_t)uws->sendFirstFragment(std::string_view(message), uWS::OpCode::BINARY, compress);
+            return (uws_sendstatus_t)uws->sendFirstFragment(std::string_view(message, length), uWS::OpCode::BINARY, compress);
         }
         uWS::WebSocket<false, true, void *> *uws = (uWS::WebSocket<false, true, void *> *)ws;
-        return (uws_sendstatus_t)uws->sendFirstFragment(std::string_view(message), uWS::OpCode::BINARY, compress);
+        return (uws_sendstatus_t)uws->sendFirstFragment(std::string_view(message, length), uWS::OpCode::BINARY, compress);
     }
     uws_sendstatus_t uws_ws_send_first_fragment_with_opcode(int ssl, uws_websocket_t *ws, const char *message, size_t length, uws_opcode_t opcode, bool compress)
     {
@@ -1106,10 +1106,10 @@ extern "C"
         if (ssl)
         {
             uWS::HttpResponse<true> *uwsRes = (uWS::HttpResponse<true> *)res;
-            return uwsRes->write(std::string_view(data));
+            return uwsRes->write(std::string_view(data, length));
         }
         uWS::HttpResponse<false> *uwsRes = (uWS::HttpResponse<false> *)res;
-        return uwsRes->write(std::string_view(data));
+        return uwsRes->write(std::string_view(data, length));
     }
     uintmax_t uws_res_get_write_offset(int ssl, uws_res_t *res)
     {
