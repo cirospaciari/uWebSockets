@@ -38,6 +38,8 @@ extern "C"
             sco.key_file_name = options.key_file_name;
             sco.passphrase = options.passphrase;
             sco.ssl_prefer_low_memory_usage = options.ssl_prefer_low_memory_usage;
+            sco.ssl_ciphers = options.ssl_ciphers;
+            
             return (uws_app_t *)new uWS::SSLApp(sco);
         }
 
