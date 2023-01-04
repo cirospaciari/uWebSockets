@@ -85,6 +85,8 @@ private:
     /* WebSocketContexts are of differing type, but we as owners and creators must delete them correctly */
     std::vector<MoveOnlyFunction<void()>> webSocketContextDeleters;
 
+    std::vector<void *> webSocketContexts;
+
 public:
 
     TopicTree<TopicTreeMessage, TopicTreeBigMessage> *topicTree = nullptr;
@@ -205,6 +207,8 @@ public:
         /* Move webSocketContextDeleters */
         webSocketContextDeleters = std::move(other.webSocketContextDeleters);
 
+        webSocketContexts = std::move(other.webSocketContexts);
+
         /* Move TopicTree */
         topicTree = other.topicTree;
         other.topicTree = nullptr;
@@ -233,7 +237,7 @@ public:
         bool resetIdleTimeoutOnSend = false;
         /* A good default, esp. for newcomers */
         bool sendPingsAutomatically = true;
-        /* Maximum socket lifetime in seconds before forced closure (defaults to disabled) */
+        /* Maximum socket lifetime in minutes before forced closure (defaults to disabled) */
         unsigned short maxLifetime = 0;
         MoveOnlyFunction<void(HttpResponse<SSL> *, HttpRequest *, struct us_socket_context_t *)> upgrade = nullptr;
         MoveOnlyFunction<void(WebSocket<SSL, true, UserData> *)> open = nullptr;
@@ -244,6 +248,16 @@ public:
         MoveOnlyFunction<void(WebSocket<SSL, true, UserData> *, std::string_view, int, int)> subscription = nullptr;
         MoveOnlyFunction<void(WebSocket<SSL, true, UserData> *, int, std::string_view)> close = nullptr;
     };
+
+    /* Closes all sockets including listen sockets. */
+    TemplatedApp &&close() {
+        us_socket_context_close(SSL, (struct us_socket_context_t *) httpContext);
+        for (void *webSocketContext : webSocketContexts) {
+            us_socket_context_close(SSL, (struct us_socket_context_t *) webSocketContext);
+        }
+
+        return std::move(*this);
+    }
 
     template <typename UserData>
     TemplatedApp &&ws(std::string pattern, WebSocketBehavior<UserData> &&behavior) {
@@ -261,8 +275,16 @@ public:
             std::terminate();
         }
 
-        if (behavior.idleTimeout % 4) {
-            std::cerr << "Warning: idleTimeout should be a multiple of 4!" << std::endl;
+        /* Maximum idleTimeout is 16 minutes */
+        if (behavior.idleTimeout > 240 * 4) {
+            std::cerr << "Error: idleTimeout must not be greater than 960 seconds!" << std::endl;
+            std::terminate();
+        }
+
+        /* Maximum maxLifetime is 4 hours */
+        if (behavior.maxLifetime > 240) {
+            std::cerr << "Error: maxLifetime must not be greater than 240 minutes!" << std::endl;
+            std::terminate();
         }
 
         /* If we don't have a TopicTree yet, create one now */
@@ -327,6 +349,9 @@ public:
             webSocketContext->free();
         });
 
+        /* We also keep this list for easy closing */
+        webSocketContexts.push_back((void *)webSocketContext);
+
         /* Quick fix to disable any compression if set */
 #ifdef UWS_NO_ZLIB
         behavior.compression = DISABLED;
@@ -366,6 +391,7 @@ public:
         webSocketContext->getExt()->closeOnBackpressureLimit = behavior.closeOnBackpressureLimit;
         webSocketContext->getExt()->resetIdleTimeoutOnSend = behavior.resetIdleTimeoutOnSend;
         webSocketContext->getExt()->sendPingsAutomatically = behavior.sendPingsAutomatically;
+        webSocketContext->getExt()->maxLifetime = behavior.maxLifetime;
         webSocketContext->getExt()->compression = behavior.compression;
 
         /* Calculate idleTimeoutCompnents */
