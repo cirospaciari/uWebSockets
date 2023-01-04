@@ -597,6 +597,11 @@ extern "C"
                 {
                     behavior.close((uws_websocket_t *)ws, code, message.data(), message.length(), user_data);
                 };
+            if (behavior.subscription)
+                generic_handler.subscription = [behavior, user_data](auto *ws, auto topic, int subscribers, int old_subscribers){
+                    behavior.subscription((uws_websocket_t *)ws, topic.data(), topic.length(), subscribers, old_subscribers, user_data);
+
+                };
             uWS::SSLApp *uwsApp = (uWS::SSLApp *)app;
 
             uwsApp->ws<void *>(pattern, std::move(generic_handler));
@@ -648,6 +653,11 @@ extern "C"
                 generic_handler.close = [behavior, user_data](auto *ws, int code, auto message)
                 {
                     behavior.close((uws_websocket_t *)ws, code, message.data(), message.length(), user_data);
+                };
+            if (behavior.subscription)
+                generic_handler.subscription = [behavior, user_data](auto *ws, auto topic, int subscribers, int old_subscribers){
+                    behavior.subscription((uws_websocket_t *)ws, topic.data(), topic.length(), subscribers, old_subscribers, user_data);
+
                 };
             uWS::App *uwsApp = (uWS::App *)app;
             uwsApp->ws<void *>(pattern, std::move(generic_handler));

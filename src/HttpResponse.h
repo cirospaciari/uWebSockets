@@ -80,7 +80,7 @@ private:
 #ifndef UWS_HTTPRESPONSE_NO_WRITEMARK
         if (!Super::getLoopData()->noMark) {
             /* We only expose major version */
-            writeHeader("uWebSockets", "20");
+            writeHeader("Server", "uWebSockets_20");
         }
 #endif
     }
