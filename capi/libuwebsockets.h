@@ -207,6 +207,7 @@ extern "C"
     DLL_EXPORT size_t uws_ws_get_remote_address_as_text(int ssl, uws_websocket_t *ws, const char **dest);
 
     //Response
+    DLL_EXPORT void uws_res_close(int ssl, uws_res_t *res);
     DLL_EXPORT void uws_res_end(int ssl, uws_res_t *res, const char *data, size_t length, bool close_connection);
     DLL_EXPORT uws_try_end_result_t uws_res_try_end(int ssl, uws_res_t *res, const char *data, size_t length, uintmax_t total_size, bool close_connection);
     DLL_EXPORT void uws_res_cork(int ssl, uws_res_t *res, void(*callback)(uws_res_t *res, void* user_data) ,void* user_data);

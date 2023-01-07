@@ -896,7 +896,19 @@ extern "C"
         *dest = value.data();
         return value.length();
     }
-
+    void uws_res_close(int ssl, uws_res_t *res)
+    {
+        if (ssl)
+        {
+            uWS::HttpResponse<true> *uwsRes = (uWS::HttpResponse<true> *)res;
+            uwsRes->close();
+        }
+        else
+        {
+            uWS::HttpResponse<false> *uwsRes = (uWS::HttpResponse<false> *)res;
+            uwsRes->close();
+        }
+    }
     void uws_res_end(int ssl, uws_res_t *res, const char *data, size_t length, bool close_connection)
     {
         if (ssl)
