@@ -1151,9 +1151,10 @@ extern "C"
         {
             uWS::HttpResponse<true> *uwsRes = (uWS::HttpResponse<true> *)res;
             uwsRes->overrideWriteOffset(offset);
+        } else {
+            uWS::HttpResponse<false> *uwsRes = (uWS::HttpResponse<false> *)res;
+            uwsRes->overrideWriteOffset(offset);
         }
-        uWS::HttpResponse<false> *uwsRes = (uWS::HttpResponse<false> *)res;
-        uwsRes->overrideWriteOffset(offset);
     }
     bool uws_res_has_responded(int ssl, uws_res_t *res)
     {
