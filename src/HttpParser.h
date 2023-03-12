@@ -260,10 +260,10 @@ private:
                         return data + 11;
                     }
                     /* Check that the following is ancient http 1.0 */
-                    // if (memcmp(" HTTP/1.0\r\n", data, 11) == 0) {
-                    //     *isAncientHttp = true;
-                    //     return data + 11;
-                    // }
+                    if (memcmp(" HTTP/1.0\r\n", data, 11) == 0) {
+                        *isAncientHttp = true;
+                        return data + 11;
+                    }
                     return nullptr;
                 }
             }
