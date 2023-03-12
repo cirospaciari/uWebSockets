@@ -407,6 +407,11 @@ private:
         data[length + 1] = 'a'; /* Anything that is not \n, to trigger "invalid request" */
         bool isAncientHttp = false;
         for (unsigned int consumed; length && (consumed = getHeaders(data, data + length, req->headers, reserved, &isAncientHttp)); ) {
+            //consumed = 0 means that an error occurs in getHeaders
+            if (consumed == 0) { 
+                return {0, FULLPTR};
+            }
+            
             data += consumed;
             length -= consumed;
             consumedTotal += consumed;
