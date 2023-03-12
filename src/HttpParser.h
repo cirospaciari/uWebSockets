@@ -319,7 +319,7 @@ private:
         /* The request line is different from the field names / field values */
         if (!(postPaddedBuffer = consumeRequestLine(postPaddedBuffer, headers[0], isAncientHttp))) {
             /* Error - invalid request line */
-            return -1;
+            return 0;
         }
         headers++;
 
@@ -516,9 +516,7 @@ private:
             if (CONSUME_MINIMALLY) {
                 break;
             }
-        }
-        if(consumedTotal < 0)
-            return {0, FULLPTR};    
+        } 
         return {consumedTotal, user};
     }
 
