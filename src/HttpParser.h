@@ -39,6 +39,14 @@ namespace uWS {
 static const unsigned int MINIMUM_HTTP_POST_PADDING = 32;
 static void *FULLPTR = (void *)~(uintptr_t)0;
 
+enum HttpRequestHeaderParserError : int {
+    NONE = 0,
+    INVALID_LINE = 1,
+    INVALID_FIELDNAME = 2,
+    MALFORMED_REQUEST = 3,
+    REQUEST_TOO_BIG = 4
+};
+
 struct HttpRequest {
 
     friend struct HttpParser;
@@ -287,7 +295,7 @@ private:
     }
 
     /* End is only used for the proxy parser. The HTTP parser recognizes "\ra" as invalid "\r\n" scan and breaks. */
-    static unsigned int getHeaders(char *postPaddedBuffer, char *end, struct HttpRequest::Header *headers, void *reserved, bool*isAncientHttp) {
+    static unsigned int getHeaders(char *postPaddedBuffer, char *end, struct HttpRequest::Header *headers, void *reserved, bool *isAncientHttp, HttpRequestHeaderParserError *error_code) {
         char *preliminaryKey, *preliminaryValue, *start = postPaddedBuffer;
 
         #ifdef UWS_WITH_PROXY
@@ -319,6 +327,7 @@ private:
         /* The request line is different from the field names / field values */
         if (!(postPaddedBuffer = consumeRequestLine(postPaddedBuffer, headers[0], isAncientHttp))) {
             /* Error - invalid request line */
+            *error_code = INVALID_LINE;
             return 0;
         }
         headers++;
@@ -332,6 +341,7 @@ private:
             /* We should not accept whitespace between key and colon, so colon must foloow immediately */
             if (postPaddedBuffer[0] != ':') {
                 /* Error: invalid chars in field name */
+                *error_code = INVALID_FIELDNAME;
                 return 0;
             }
             postPaddedBuffer++;
@@ -348,6 +358,7 @@ private:
                         continue;
                     }
                     /* Error - invalid chars in field value */
+                    *error_code = INVALID_FIELDNAME;
                     return 0;
                 }
                 break;
@@ -376,17 +387,21 @@ private:
                     if (postPaddedBuffer[1] == '\n') {
                         /* This cann take the very last header space */
                         headers->key = std::string_view(nullptr, 0);
+                        *error_code = NONE;
                         return (unsigned int) ((postPaddedBuffer + 2) - start);
                     } else {
+                        *error_code = MALFORMED_REQUEST;
                         /* \r\n\r plus non-\n letter is malformed request, or simply out of search space */
                         return 0;
                     }
                 }
             } else {
+                *error_code = MALFORMED_REQUEST;
                 /* We are either out of search space or this is a malformed request */
                 return 0;
             }
         }
+        *error_code = REQUEST_TOO_BIG;
         /* We ran out of header space, too large request */
         return 0;
     }
@@ -406,9 +421,15 @@ private:
         data[length] = '\r';
         data[length + 1] = 'a'; /* Anything that is not \n, to trigger "invalid request" */
         bool isAncientHttp = false;
-        if (length) { 
-            unsigned int consumed = 0; 
-            for (;(consumed = getHeaders(data, data + length, req->headers, reserved, &isAncientHttp));) {
+        if (length) {
+            unsigned int consumed = 0;
+            do {
+                HttpRequestHeaderParserError error_code;
+                consumed = getHeaders(data, data + length, req->headers, reserved, &isAncientHttp, &error_code);
+                if (error_code != NONE) {
+                    return {0, FULLPTR};
+                }
+
                 data += consumed;
                 length -= consumed;
                 consumedTotal += consumed;
@@ -518,11 +539,8 @@ private:
                 if (CONSUME_MINIMALLY) {
                     break;
                 }
-            } 
-            //consumed = 0 means that an error occurs in getHeaders
-            if (consumed == 0) { 
-                return {0, FULLPTR};
-            }
+            } while (consumed);
+           
         }
             
         return {consumedTotal, user};
