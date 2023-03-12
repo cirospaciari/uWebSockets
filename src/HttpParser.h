@@ -260,10 +260,10 @@ private:
                         return data + 11;
                     }
                     /* Check that the following is ancient http 1.0 */
-                    if (memcmp(" HTTP/1.0\r\n", data, 11) == 0) {
-                        *isAncientHttp = true;
-                        return data + 11;
-                    }
+                    // if (memcmp(" HTTP/1.0\r\n", data, 11) == 0) {
+                    //     *isAncientHttp = true;
+                    //     return data + 11;
+                    // }
                     return nullptr;
                 }
             }
@@ -406,12 +406,8 @@ private:
         data[length] = '\r';
         data[length + 1] = 'a'; /* Anything that is not \n, to trigger "invalid request" */
         bool isAncientHttp = false;
-        for (unsigned int consumed; length && (consumed = getHeaders(data, data + length, req->headers, reserved, &isAncientHttp)); ) {
-            //consumed = 0 means that an error occurs in getHeaders
-            if (consumed == 0) { 
-                return {0, FULLPTR};
-            }
-            
+        unsigned int consumed; 
+        for (;length && (consumed = getHeaders(data, data + length, req->headers, reserved, &isAncientHttp)); ) {
             data += consumed;
             length -= consumed;
             consumedTotal += consumed;
@@ -522,6 +518,11 @@ private:
                 break;
             }
         } 
+        //consumed = 0 means that an error occurs in getHeaders
+        if (consumed == 0) { 
+            return {0, FULLPTR};
+        }
+            
         return {consumedTotal, user};
     }
 
