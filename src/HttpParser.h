@@ -39,14 +39,6 @@ namespace uWS {
 static const unsigned int MINIMUM_HTTP_POST_PADDING = 32;
 static void *FULLPTR = (void *)~(uintptr_t)0;
 
-enum HttpRequestHeaderParserError : int {
-    NONE = 0,
-    INVALID_LINE = 1,
-    INVALID_FIELDNAME = 2,
-    MALFORMED_REQUEST = 3,
-    REQUEST_TOO_BIG = 4
-};
-
 struct HttpRequest {
 
     friend struct HttpParser;
@@ -295,7 +287,7 @@ private:
     }
 
     /* End is only used for the proxy parser. The HTTP parser recognizes "\ra" as invalid "\r\n" scan and breaks. */
-    static unsigned int getHeaders(char *postPaddedBuffer, char *end, struct HttpRequest::Header *headers, void *reserved, bool *isAncientHttp, HttpRequestHeaderParserError *error_code) {
+    static unsigned int getHeaders(char *postPaddedBuffer, char *end, struct HttpRequest::Header *headers, void *reserved, bool*isAncientHttp) {
         char *preliminaryKey, *preliminaryValue, *start = postPaddedBuffer;
 
         #ifdef UWS_WITH_PROXY
@@ -327,7 +319,6 @@ private:
         /* The request line is different from the field names / field values */
         if (!(postPaddedBuffer = consumeRequestLine(postPaddedBuffer, headers[0], isAncientHttp))) {
             /* Error - invalid request line */
-            *error_code = INVALID_LINE;
             return 0;
         }
         headers++;
@@ -341,7 +332,6 @@ private:
             /* We should not accept whitespace between key and colon, so colon must foloow immediately */
             if (postPaddedBuffer[0] != ':') {
                 /* Error: invalid chars in field name */
-                *error_code = INVALID_FIELDNAME;
                 return 0;
             }
             postPaddedBuffer++;
@@ -358,7 +348,6 @@ private:
                         continue;
                     }
                     /* Error - invalid chars in field value */
-                    *error_code = INVALID_FIELDNAME;
                     return 0;
                 }
                 break;
@@ -387,21 +376,17 @@ private:
                     if (postPaddedBuffer[1] == '\n') {
                         /* This cann take the very last header space */
                         headers->key = std::string_view(nullptr, 0);
-                        *error_code = NONE;
                         return (unsigned int) ((postPaddedBuffer + 2) - start);
                     } else {
-                        *error_code = MALFORMED_REQUEST;
                         /* \r\n\r plus non-\n letter is malformed request, or simply out of search space */
                         return 0;
                     }
                 }
             } else {
-                *error_code = MALFORMED_REQUEST;
                 /* We are either out of search space or this is a malformed request */
                 return 0;
             }
         }
-        *error_code = REQUEST_TOO_BIG;
         /* We ran out of header space, too large request */
         return 0;
     }
@@ -421,128 +406,117 @@ private:
         data[length] = '\r';
         data[length + 1] = 'a'; /* Anything that is not \n, to trigger "invalid request" */
         bool isAncientHttp = false;
-        if (length) {
-            unsigned int consumed = 0;
-            do {
-                HttpRequestHeaderParserError error_code;
-                consumed = getHeaders(data, data + length, req->headers, reserved, &isAncientHttp, &error_code);
-                if (error_code != NONE) {
-                    return {0, FULLPTR};
-                }
+        for (unsigned int consumed; length && (consumed = getHeaders(data, data + length, req->headers, reserved, &isAncientHttp)); ) {
+            data += consumed;
+            length -= consumed;
+            consumedTotal += consumed;
 
-                data += consumed;
-                length -= consumed;
-                consumedTotal += consumed;
+            /* Store HTTP version (ancient 1.0 or 1.1) */
+            req->ancientHttp = isAncientHttp;
 
-                /* Store HTTP version (ancient 1.0 or 1.1) */
-                req->ancientHttp = isAncientHttp;
+            /* Add all headers to bloom filter */
+            req->bf.reset();
+            for (HttpRequest::Header *h = req->headers; (++h)->key.length(); ) {
+                req->bf.add(h->key);
+            }
+            
+            /* Break if no host header (but we can have empty string which is different from nullptr) */
+            if (!req->getHeader("host").data()) {
+                return {0, FULLPTR};
+            }
 
-                /* Add all headers to bloom filter */
-                req->bf.reset();
-                for (HttpRequest::Header *h = req->headers; (++h)->key.length(); ) {
-                    req->bf.add(h->key);
-                }
-                
-                /* Break if no host header (but we can have empty string which is different from nullptr) */
-                if (!req->getHeader("host").data()) {
-                    return {0, FULLPTR};
-                }
+            /* RFC 9112 6.3
+            * If a message is received with both a Transfer-Encoding and a Content-Length header field,
+            * the Transfer-Encoding overrides the Content-Length. Such a message might indicate an attempt
+            * to perform request smuggling (Section 11.2) or response splitting (Section 11.1) and
+            * ought to be handled as an error. */
+            std::string_view transferEncodingString = req->getHeader("transfer-encoding");
+            std::string_view contentLengthString = req->getHeader("content-length");
+            if (transferEncodingString.length() && contentLengthString.length()) {
+                /* Returning fullptr is the same as calling the errorHandler */
+                /* We could be smart and set an error in the context along with this, to indicate what 
+                 * http error response we might want to return */
+                return {0, FULLPTR};
+            }
+
+            /* Parse query */
+            const char *querySeparatorPtr = (const char *) memchr(req->headers->value.data(), '?', req->headers->value.length());
+            req->querySeparator = (unsigned int) ((querySeparatorPtr ? querySeparatorPtr : req->headers->value.data() + req->headers->value.length()) - req->headers->value.data());
+
+            /* If returned socket is not what we put in we need
+             * to break here as we either have upgraded to
+             * WebSockets or otherwise closed the socket. */
+            void *returnedUser = requestHandler(user, req);
+            if (returnedUser != user) {
+                /* We are upgraded to WebSocket or otherwise broken */
+                return {consumedTotal, returnedUser};
+            }
+
+            /* The rules at play here according to RFC 9112 for requests are essentially:
+             * If both content-length and transfer-encoding then invalid message; must break.
+             * If has transfer-encoding then must be chunked regardless of value.
+             * If content-length then fixed length even if 0.
+             * If none of the above then fixed length is 0. */
+
+            /* RFC 9112 6.3
+             * If a message is received with both a Transfer-Encoding and a Content-Length header field,
+             * the Transfer-Encoding overrides the Content-Length. */
+            if (transferEncodingString.length()) {
+
+                /* If a proxy sent us the transfer-encoding header that 100% means it must be chunked or else the proxy is
+                 * not RFC 9112 compliant. Therefore it is always better to assume this is the case, since that entirely eliminates 
+                 * all forms of transfer-encoding obfuscation tricks. We just rely on the header. */
 
                 /* RFC 9112 6.3
-                * If a message is received with both a Transfer-Encoding and a Content-Length header field,
-                * the Transfer-Encoding overrides the Content-Length. Such a message might indicate an attempt
-                * to perform request smuggling (Section 11.2) or response splitting (Section 11.1) and
-                * ought to be handled as an error. */
-                std::string_view transferEncodingString = req->getHeader("transfer-encoding");
-                std::string_view contentLengthString = req->getHeader("content-length");
-                if (transferEncodingString.length() && contentLengthString.length()) {
-                    /* Returning fullptr is the same as calling the errorHandler */
-                    /* We could be smart and set an error in the context along with this, to indicate what 
-                    * http error response we might want to return */
-                    return {0, FULLPTR};
-                }
+                 * If a Transfer-Encoding header field is present in a request and the chunked transfer coding is not the
+                 * final encoding, the message body length cannot be determined reliably; the server MUST respond with the
+                 * 400 (Bad Request) status code and then close the connection. */
 
-                /* Parse query */
-                const char *querySeparatorPtr = (const char *) memchr(req->headers->value.data(), '?', req->headers->value.length());
-                req->querySeparator = (unsigned int) ((querySeparatorPtr ? querySeparatorPtr : req->headers->value.data() + req->headers->value.length()) - req->headers->value.data());
+                /* In this case we fail later by having the wrong interpretation (assuming chunked).
+                 * This could be made stricter but makes no difference either way, unless forwarding the identical message as a proxy. */
 
-                /* If returned socket is not what we put in we need
-                * to break here as we either have upgraded to
-                * WebSockets or otherwise closed the socket. */
-                void *returnedUser = requestHandler(user, req);
-                if (returnedUser != user) {
-                    /* We are upgraded to WebSocket or otherwise broken */
-                    return {consumedTotal, returnedUser};
-                }
-
-                /* The rules at play here according to RFC 9112 for requests are essentially:
-                * If both content-length and transfer-encoding then invalid message; must break.
-                * If has transfer-encoding then must be chunked regardless of value.
-                * If content-length then fixed length even if 0.
-                * If none of the above then fixed length is 0. */
-
-                /* RFC 9112 6.3
-                * If a message is received with both a Transfer-Encoding and a Content-Length header field,
-                * the Transfer-Encoding overrides the Content-Length. */
-                if (transferEncodingString.length()) {
-
-                    /* If a proxy sent us the transfer-encoding header that 100% means it must be chunked or else the proxy is
-                    * not RFC 9112 compliant. Therefore it is always better to assume this is the case, since that entirely eliminates 
-                    * all forms of transfer-encoding obfuscation tricks. We just rely on the header. */
-
-                    /* RFC 9112 6.3
-                    * If a Transfer-Encoding header field is present in a request and the chunked transfer coding is not the
-                    * final encoding, the message body length cannot be determined reliably; the server MUST respond with the
-                    * 400 (Bad Request) status code and then close the connection. */
-
-                    /* In this case we fail later by having the wrong interpretation (assuming chunked).
-                    * This could be made stricter but makes no difference either way, unless forwarding the identical message as a proxy. */
-
-                    remainingStreamingBytes = STATE_IS_CHUNKED;
-                    /* If consume minimally, we do not want to consume anything but we want to mark this as being chunked */
-                    if (!CONSUME_MINIMALLY) {
-                        /* Go ahead and parse it (todo: better heuristics for emitting FIN to the app level) */
-                        std::string_view dataToConsume(data, length);
-                        for (auto chunk : uWS::ChunkIterator(&dataToConsume, &remainingStreamingBytes)) {
-                            dataHandler(user, chunk, chunk.length() == 0);
-                        }
-                        if (isParsingInvalidChunkedEncoding(remainingStreamingBytes)) {
-                            return {0, FULLPTR};
-                        }
-                        unsigned int consumed = (length - (unsigned int) dataToConsume.length());
-                        data = (char *) dataToConsume.data();
-                        length = (unsigned int) dataToConsume.length();
-                        consumedTotal += consumed;
+                remainingStreamingBytes = STATE_IS_CHUNKED;
+                /* If consume minimally, we do not want to consume anything but we want to mark this as being chunked */
+                if (!CONSUME_MINIMALLY) {
+                    /* Go ahead and parse it (todo: better heuristics for emitting FIN to the app level) */
+                    std::string_view dataToConsume(data, length);
+                    for (auto chunk : uWS::ChunkIterator(&dataToConsume, &remainingStreamingBytes)) {
+                        dataHandler(user, chunk, chunk.length() == 0);
                     }
-                } else if (contentLengthString.length()) {
-                    remainingStreamingBytes = toUnsignedInteger(contentLengthString);
-                    if (remainingStreamingBytes == UINT_MAX) {
-                        /* Parser error */
+                    if (isParsingInvalidChunkedEncoding(remainingStreamingBytes)) {
                         return {0, FULLPTR};
                     }
-
-                    if (!CONSUME_MINIMALLY) {
-                        unsigned int emittable = std::min<unsigned int>(remainingStreamingBytes, length);
-                        dataHandler(user, std::string_view(data, emittable), emittable == remainingStreamingBytes);
-                        remainingStreamingBytes -= emittable;
-
-                        data += emittable;
-                        length -= emittable;
-                        consumedTotal += emittable;
-                    }
-                } else {
-                    /* If we came here without a body; emit an empty data chunk to signal no data */
-                    dataHandler(user, {}, true);
+                    unsigned int consumed = (length - (unsigned int) dataToConsume.length());
+                    data = (char *) dataToConsume.data();
+                    length = (unsigned int) dataToConsume.length();
+                    consumedTotal += consumed;
+                }
+            } else if (contentLengthString.length()) {
+                remainingStreamingBytes = toUnsignedInteger(contentLengthString);
+                if (remainingStreamingBytes == UINT_MAX) {
+                    /* Parser error */
+                    return {0, FULLPTR};
                 }
 
-                /* Consume minimally should break as easrly as possible */
-                if (CONSUME_MINIMALLY) {
-                    break;
+                if (!CONSUME_MINIMALLY) {
+                    unsigned int emittable = std::min<unsigned int>(remainingStreamingBytes, length);
+                    dataHandler(user, std::string_view(data, emittable), emittable == remainingStreamingBytes);
+                    remainingStreamingBytes -= emittable;
+
+                    data += emittable;
+                    length -= emittable;
+                    consumedTotal += emittable;
                 }
-            } while (consumed);
-           
+            } else {
+                /* If we came here without a body; emit an empty data chunk to signal no data */
+                dataHandler(user, {}, true);
+            }
+
+            /* Consume minimally should break as easrly as possible */
+            if (CONSUME_MINIMALLY) {
+                break;
+            }
         }
-            
         return {consumedTotal, user};
     }
 
