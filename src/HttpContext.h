@@ -124,6 +124,15 @@ private:
             /* Cork this socket */
             ((AsyncSocket<SSL> *) s)->cork();
 
+            /* We are on Raw mode now (tunneling)*/
+            if(httpResponseData->rawStream) {
+                us_socket_timeout(SSL, (us_socket_t *) s, 0);
+
+                httpResponseData->rawStream(std::string_view(data, length));
+                ((AsyncSocket<SSL> *) s)->uncork();
+                return s;
+            }
+
             /* Mark that we are inside the parser now */
             httpContextData->isParsingHttp = true;
 
@@ -155,7 +164,7 @@ private:
                 httpResponseData->state = HttpResponseData<SSL>::HTTP_RESPONSE_PENDING;
 
                 /* Mark this response as connectionClose if ancient or connection: close */
-                if (httpRequest->isAncient() || httpRequest->getHeader("connection").length() == 5) {
+                if (httpRequest->isAncient() || httpRequest->getHeader("Connection").length() == 5) {
                     httpResponseData->state |= HttpResponseData<SSL>::HTTP_CONNECTION_CLOSE;
                 }
 
@@ -442,7 +451,7 @@ public:
             user.httpRequest->setParameters(r->getParameters());
 
             /* Middleware? Automatically respond to expectations */
-            std::string_view expect = user.httpRequest->getHeader("expect");
+            std::string_view expect = user.httpRequest->getHeader("Expect");
             if (expect.length() && expect == "100-continue") {
                 user.httpResponse->writeContinue();
             }

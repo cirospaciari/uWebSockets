@@ -242,7 +242,7 @@ private:
         char *start = data;
         /* This catches the post padded CR and fails */
         while (data[0] > 32) data++;
-        if (data[0] == 32 && data[1] == '/') {
+        if (data[0] == 32 && data[1] != 32) {
             header.key = {start, (size_t) (data - start)};
             data++;
             /* Scan for less than 33 (catches post padded CR and fails) */

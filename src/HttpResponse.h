@@ -61,6 +61,7 @@ private:
         /* For now we do this copy */
         Super::write(buf, length);
     }
+    
 
     /* Write an unsigned 64-bit integer */
     void writeUnsigned64(uint64_t value) {
@@ -548,6 +549,16 @@ public:
 
         /* Always reset this counter here */
         data->received_bytes_per_timeout = 0;
+    }
+
+    int rawWrite(std::string_view data) {
+        auto [ written, success ] = Super::write(data.data(), data.length());
+        return written;
+    }
+    /* Attach a raw data handler for data sent.*/
+    void onRawData(MoveOnlyFunction<void(std::string_view)> &&handler) {
+        HttpResponseData<SSL> *data = getHttpResponseData();
+        data->rawStream = std::move(handler);
     }
 };
 

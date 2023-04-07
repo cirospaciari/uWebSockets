@@ -76,6 +76,7 @@ private:
     MoveOnlyFunction<bool(uintmax_t)> onWritable;
     MoveOnlyFunction<void()> onAborted;
     MoveOnlyFunction<void(std::string_view, bool)> inStream; // onData
+    MoveOnlyFunction<void(std::string_view)> rawStream; // onRawData
     /* Outgoing offset */
     uintmax_t offset = 0;
 
