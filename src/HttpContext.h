@@ -30,42 +30,54 @@
 #include <iostream>
 #include "MoveOnlyFunction.h"
 
-namespace uWS {
-template<bool> struct HttpResponse;
+namespace uWS
+{
+    template <bool>
+    struct HttpResponse;
 
-template <bool SSL>
-struct HttpContext {
-    template<bool> friend struct TemplatedApp;
-    template<bool> friend struct HttpResponse;
-private:
-    HttpContext() = delete;
+    template <bool SSL>
+    struct HttpContext
+    {
+        template <bool>
+        friend struct TemplatedApp;
+        template <bool>
+        friend struct HttpResponse;
 
-    /* Maximum delay allowed until an HTTP connection is terminated due to outstanding request or rejected data (slow loris protection) */
-    static const int HTTP_IDLE_TIMEOUT_S = 10;
+    private:
+        HttpContext() = delete;
 
-    /* Minimum allowed receive throughput per second (clients uploading less than 16kB/sec get dropped) */
-    static const int HTTP_RECEIVE_THROUGHPUT_BYTES = 16 * 1024;
+        /* Maximum delay allowed until an HTTP connection is terminated due to outstanding request or rejected data (slow loris protection) */
+        static const int HTTP_IDLE_TIMEOUT_S = 10;
 
-    us_socket_context_t *getSocketContext() {
-        return (us_socket_context_t *) this;
-    }
+        /* Minimum allowed receive throughput per second (clients uploading less than 16kB/sec get dropped) */
+        static const int HTTP_RECEIVE_THROUGHPUT_BYTES = 16 * 1024;
 
-    static us_socket_context_t *getSocketContext(us_socket_t *s) {
-        return (us_socket_context_t *) us_socket_context(SSL, s);
-    }
+        us_socket_context_t *getSocketContext()
+        {
+            return (us_socket_context_t *)this;
+        }
 
-    HttpContextData<SSL> *getSocketContextData() {
-        return (HttpContextData<SSL> *) us_socket_context_ext(SSL, getSocketContext());
-    }
+        static us_socket_context_t *getSocketContext(us_socket_t *s)
+        {
+            return (us_socket_context_t *)us_socket_context(SSL, s);
+        }
 
-    static HttpContextData<SSL> *getSocketContextDataS(us_socket_t *s) {
-        return (HttpContextData<SSL> *) us_socket_context_ext(SSL, getSocketContext(s));
-    }
+        HttpContextData<SSL> *getSocketContextData()
+        {
+            return (HttpContextData<SSL> *)us_socket_context_ext(SSL, getSocketContext());
+        }
 
-    /* Init the HttpContext by registering libusockets event handlers */
-    HttpContext<SSL> *init() {
-        /* Handle socket connections */
-        us_socket_context_on_open(SSL, getSocketContext(), [](us_socket_t *s, int /*is_client*/, char */*ip*/, int /*ip_length*/) {
+        static HttpContextData<SSL> *getSocketContextDataS(us_socket_t *s)
+        {
+            return (HttpContextData<SSL> *)us_socket_context_ext(SSL, getSocketContext(s));
+        }
+
+        /* Init the HttpContext by registering libusockets event handlers */
+        HttpContext<SSL> *init()
+        {
+            /* Handle socket connections */
+            us_socket_context_on_open(SSL, getSocketContext(), [](us_socket_t *s, int /*is_client*/, char * /*ip*/, int /*ip_length*/)
+                                      {
             /* Any connected socket should timeout until it has a request */
             us_socket_timeout(SSL, s, HTTP_IDLE_TIMEOUT_S);
 
@@ -78,11 +90,11 @@ private:
                 f((HttpResponse<SSL> *) s, 1);
             }
 
-            return s;
-        });
+            return s; });
 
-        /* Handle socket disconnections */
-        us_socket_context_on_close(SSL, getSocketContext(), [](us_socket_t *s, int /*code*/, void */*reason*/) {
+            /* Handle socket disconnections */
+            us_socket_context_on_close(SSL, getSocketContext(), [](us_socket_t *s, int /*code*/, void * /*reason*/)
+                                       {
             /* Get socket ext */
             HttpResponseData<SSL> *httpResponseData = (HttpResponseData<SSL> *) us_socket_ext(SSL, s);
 
@@ -100,11 +112,11 @@ private:
             /* Destruct socket ext */
             httpResponseData->~HttpResponseData<SSL>();
 
-            return s;
-        });
+            return s; });
 
-        /* Handle HTTP data streams */
-        us_socket_context_on_data(SSL, getSocketContext(), [](us_socket_t *s, char *data, int length) {
+            /* Handle HTTP data streams */
+            us_socket_context_on_data(SSL, getSocketContext(), [](us_socket_t *s, char *data, int length)
+                                      {
 
             // total overhead is about 210k down to 180k
             // ~210k req/sec is the original perf with write in data
@@ -217,6 +229,12 @@ private:
                 return s;
 
             }, [httpResponseData](void *user, std::string_view data, bool fin) -> void * {
+                /* We are on Raw mode now (tunneling)*/
+                if(httpResponseData->rawStream) {
+                    httpResponseData->rawStream(data);
+                    return user;
+                }
+
                 /* We always get an empty chunk even if there is no data */
                 if (httpResponseData->inStream) {
 
@@ -324,11 +342,11 @@ private:
             ((AsyncSocket<SSL> *) s)->uncork();
 
             /* We cannot return nullptr to the underlying stack in any case */
-            return s;
-        });
+            return s; });
 
-        /* Handle HTTP write out (note: SSL_read may trigger this spuriously, the app need to handle spurious calls) */
-        us_socket_context_on_writable(SSL, getSocketContext(), [](us_socket_t *s) {
+            /* Handle HTTP write out (note: SSL_read may trigger this spuriously, the app need to handle spurious calls) */
+            us_socket_context_on_writable(SSL, getSocketContext(), [](us_socket_t *s)
+                                          {
 
             AsyncSocket<SSL> *asyncSocket = (AsyncSocket<SSL> *) s;
             HttpResponseData<SSL> *httpResponseData = (HttpResponseData<SSL> *) asyncSocket->getAsyncSocketData();
@@ -371,81 +389,89 @@ private:
             /* Expect another writable event, or another request within the timeout */
             asyncSocket->timeout(HTTP_IDLE_TIMEOUT_S);
 
-            return s;
-        });
+            return s; });
 
-        /* Handle FIN, HTTP does not support half-closed sockets, so simply close */
-        us_socket_context_on_end(SSL, getSocketContext(), [](us_socket_t *s) {
+            /* Handle FIN, HTTP does not support half-closed sockets, so simply close */
+            us_socket_context_on_end(SSL, getSocketContext(), [](us_socket_t *s)
+                                     {
+                                         /* We do not care for half closed sockets */
+                                         AsyncSocket<SSL> *asyncSocket = (AsyncSocket<SSL> *)s;
+                                         return asyncSocket->close();
+                                     });
 
-            /* We do not care for half closed sockets */
-            AsyncSocket<SSL> *asyncSocket = (AsyncSocket<SSL> *) s;
-            return asyncSocket->close();
+            /* Handle socket timeouts, simply close them so to not confuse client with FIN */
+            us_socket_context_on_timeout(SSL, getSocketContext(), [](us_socket_t *s)
+                                         {
+                                             /* Force close rather than gracefully shutdown and risk confusing the client with a complete download */
+                                             AsyncSocket<SSL> *asyncSocket = (AsyncSocket<SSL> *)s;
+                                             return asyncSocket->close();
+                                         });
 
-        });
-
-        /* Handle socket timeouts, simply close them so to not confuse client with FIN */
-        us_socket_context_on_timeout(SSL, getSocketContext(), [](us_socket_t *s) {
-
-            /* Force close rather than gracefully shutdown and risk confusing the client with a complete download */
-            AsyncSocket<SSL> *asyncSocket = (AsyncSocket<SSL> *) s;
-            return asyncSocket->close();
-
-        });
-
-        return this;
-    }
-
-public:
-    /* Construct a new HttpContext using specified loop */
-    static HttpContext *create(Loop *loop, us_socket_context_options_t options = {}) {
-        HttpContext *httpContext;
-
-        httpContext = (HttpContext *) us_create_socket_context(SSL, (us_loop_t *) loop, sizeof(HttpContextData<SSL>), options);
-
-        if (!httpContext) {
-            return nullptr;
+            return this;
         }
 
-        /* Init socket context data */
-        new ((HttpContextData<SSL> *) us_socket_context_ext(SSL, (us_socket_context_t *) httpContext)) HttpContextData<SSL>();
-        return httpContext->init();
-    }
+    public:
+        /* Construct a new HttpContext using specified loop */
+        static HttpContext *create(Loop *loop, us_socket_context_options_t options = {})
+        {
+            HttpContext *httpContext;
 
-    /* Destruct the HttpContext, it does not follow RAII */
-    void free() {
-        /* Destruct socket context data */
-        HttpContextData<SSL> *httpContextData = getSocketContextData();
-        httpContextData->~HttpContextData<SSL>();
+            httpContext = (HttpContext *)us_create_socket_context(SSL, (us_loop_t *)loop, sizeof(HttpContextData<SSL>), options);
 
-        /* Free the socket context in whole */
-        us_socket_context_free(SSL, getSocketContext());
-    }
+            if (!httpContext)
+            {
+                return nullptr;
+            }
 
-    void filter(MoveOnlyFunction<void(HttpResponse<SSL> *, int)> &&filterHandler) {
-        getSocketContextData()->filterHandlers.emplace_back(std::move(filterHandler));
-    }
-
-    /* Register an HTTP route handler acording to URL pattern */
-    void onHttp(std::string method, std::string pattern, MoveOnlyFunction<void(HttpResponse<SSL> *, HttpRequest *)> &&handler, bool upgrade = false) {
-        HttpContextData<SSL> *httpContextData = getSocketContextData();
-
-        /* Todo: This is ugly, fix */
-        std::vector<std::string> methods;
-        if (method == "*") {
-            methods = httpContextData->currentRouter->upperCasedMethods;
-        } else {
-            methods = {method};
+            /* Init socket context data */
+            new ((HttpContextData<SSL> *)us_socket_context_ext(SSL, (us_socket_context_t *)httpContext)) HttpContextData<SSL>();
+            return httpContext->init();
         }
 
-        uint32_t priority = method == "*" ? httpContextData->currentRouter->LOW_PRIORITY : (upgrade ? httpContextData->currentRouter->HIGH_PRIORITY : httpContextData->currentRouter->MEDIUM_PRIORITY);
+        /* Destruct the HttpContext, it does not follow RAII */
+        void free()
+        {
+            /* Destruct socket context data */
+            HttpContextData<SSL> *httpContextData = getSocketContextData();
+            httpContextData->~HttpContextData<SSL>();
 
-        /* If we are passed nullptr then remove this */
-        if (!handler) {
-            httpContextData->currentRouter->remove(methods[0], pattern, priority);
-            return;
+            /* Free the socket context in whole */
+            us_socket_context_free(SSL, getSocketContext());
         }
 
-        httpContextData->currentRouter->add(methods, pattern, [handler = std::move(handler)](auto *r) mutable {
+        void filter(MoveOnlyFunction<void(HttpResponse<SSL> *, int)> &&filterHandler)
+        {
+            getSocketContextData()->filterHandlers.emplace_back(std::move(filterHandler));
+        }
+
+        /* Register an HTTP route handler acording to URL pattern */
+        void onHttp(std::string method, std::string pattern, MoveOnlyFunction<void(HttpResponse<SSL> *, HttpRequest *)> &&handler, bool upgrade = false)
+        {
+            HttpContextData<SSL> *httpContextData = getSocketContextData();
+
+            /* Todo: This is ugly, fix */
+            std::vector<std::string> methods;
+            if (method == "*")
+            {
+                methods = httpContextData->currentRouter->upperCasedMethods;
+            }
+            else
+            {
+                methods = {method};
+            }
+
+            uint32_t priority = method == "*" ? httpContextData->currentRouter->LOW_PRIORITY : (upgrade ? httpContextData->currentRouter->HIGH_PRIORITY : httpContextData->currentRouter->MEDIUM_PRIORITY);
+
+            /* If we are passed nullptr then remove this */
+            if (!handler)
+            {
+                httpContextData->currentRouter->remove(methods[0], pattern, priority);
+                return;
+            }
+
+            httpContextData->currentRouter->add(
+                methods, pattern, [handler = std::move(handler)](auto *r) mutable
+                {
             auto user = r->getUserData();
             user.httpRequest->setYield(false);
             user.httpRequest->setParameters(r->getParameters());
@@ -462,20 +488,22 @@ public:
             if (user.httpRequest->getYield()) {
                 return false;
             }
-            return true;
-        }, priority);
-    }
+            return true; },
+                priority);
+        }
 
-    /* Listen to port using this HttpContext */
-    us_listen_socket_t *listen(const char *host, int port, int options) {
-        return us_socket_context_listen(SSL, getSocketContext(), host, port, options, sizeof(HttpResponseData<SSL>));
-    }
+        /* Listen to port using this HttpContext */
+        us_listen_socket_t *listen(const char *host, int port, int options)
+        {
+            return us_socket_context_listen(SSL, getSocketContext(), host, port, options, sizeof(HttpResponseData<SSL>));
+        }
 
-    /* Listen to unix domain socket using this HttpContext */
-    us_listen_socket_t *listen(const char *path, int options) {
-        return us_socket_context_listen_unix(SSL, getSocketContext(), path, options, sizeof(HttpResponseData<SSL>));
-    }
-};
+        /* Listen to unix domain socket using this HttpContext */
+        us_listen_socket_t *listen(const char *path, int options)
+        {
+            return us_socket_context_listen_unix(SSL, getSocketContext(), path, options, sizeof(HttpResponseData<SSL>));
+        }
+    };
 
 }
 
