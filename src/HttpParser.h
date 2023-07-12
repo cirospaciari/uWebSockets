@@ -239,7 +239,7 @@ private:
     }
 
     /* Puts method as key, target as value and returns non-null (or nullptr on error). */
-    static inline char *consumeRequestLine(char *data, HttpRequest::Header &header) {
+    static inline char *consumeRequestLine(char *data, HttpRequest::Header &header, bool *ancientHttp) {
         /* Scan until single SP, assume next is / (origin request) */
         char *start = data;
         /* This catches the post padded CR and fails */
@@ -258,9 +258,11 @@ private:
                     header.value = {start, (size_t) (data - start)};
                     /* Check that the following is http 1.1 */
                     if (memcmp(" HTTP/1.1\r\n", data, 11) == 0) {
+                        *ancientHttp = false;
                         return data + 11;
                     }
                     if (memcmp(" HTTP/1.0\r\n", data, 11) == 0) {
+                        *ancientHttp = true;
                         return data + 11;
                     }
                     return nullptr;
@@ -286,7 +288,7 @@ private:
     }
 
     /* End is only used for the proxy parser. The HTTP parser recognizes "\ra" as invalid "\r\n" scan and breaks. */
-    static unsigned int getHeaders(char *postPaddedBuffer, char *end, struct HttpRequest::Header *headers, void *reserved, unsigned int &err) {
+    static unsigned int getHeaders(char *postPaddedBuffer, char *end, struct HttpRequest::Header *headers, void *reserved, unsigned int &err, bool *ancientHttp) {
         char *preliminaryKey, *preliminaryValue, *start = postPaddedBuffer;
 
         #ifdef UWS_WITH_PROXY
@@ -316,7 +318,7 @@ private:
          * which is then removed, and our counters to flip due to overflow and we end up with a crash */
 
         /* The request line is different from the field names / field values */
-        if (!(postPaddedBuffer = consumeRequestLine(postPaddedBuffer, headers[0]))) {
+        if (!(postPaddedBuffer = consumeRequestLine(postPaddedBuffer, headers[0], ancientHttp))) {
             /* Error - invalid request line */
             /* Assuming it is 505 HTTP Version Not Supported */
             err = HTTP_ERROR_505_HTTP_VERSION_NOT_SUPPORTED;
@@ -408,13 +410,13 @@ private:
         data[length] = '\r';
         data[length + 1] = 'a'; /* Anything that is not \n, to trigger "invalid request" */
 
-        for (unsigned int consumed; length && (consumed = getHeaders(data, data + length, req->headers, reserved, err)); ) {
+        /* Store HTTP version (ancient 1.0 or 1.1) */
+        req->ancientHttp = false;
+
+        for (unsigned int consumed; length && (consumed = getHeaders(data, data + length, req->headers, reserved, err, &req->ancientHttp)); ) {
             data += consumed;
             length -= consumed;
             consumedTotal += consumed;
-
-            /* Store HTTP version (ancient 1.0 or 1.1) */
-            req->ancientHttp = false;
 
             /* Add all headers to bloom filter */
             req->bf.reset();
