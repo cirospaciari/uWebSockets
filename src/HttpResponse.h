@@ -55,7 +55,9 @@ private:
 
     /* Write an unsigned 32-bit integer in hex */
     void writeUnsignedHex(unsigned int value) {
-        char buf[10];
+        /* Buf really only needs to be 8 long but building with
+         * -mavx2, GCC still wants to overstep it so made it 16 */
+        char buf[16];
         int length = utils::u32toaHex(value, buf);
 
         /* For now we do this copy */
@@ -420,7 +422,7 @@ public:
     /* End without a body (no content-length) or end with a spoofed content-length. */
     void endWithoutBody(std::optional<size_t> reportedContentLength = std::nullopt, bool closeConnection = false) {
         if (reportedContentLength.has_value()) {
-            //internalEnd({nullptr, 0}, reportedContentLength.value(), false, true, closeConnection);
+            internalEnd({nullptr, 0}, reportedContentLength.value(), false, true, closeConnection);
         } else {
             internalEnd({nullptr, 0}, 0, false, false, closeConnection);
         }
@@ -497,8 +499,27 @@ public:
             Super::cork();
             handler();
 
+            /* The only way we could possibly have changed the corked socket during handler call, would be if 
+             * the HTTP socket was upgraded to WebSocket and caused a realloc. Because of this we cannot use "this"
+             * from here downwards. The corking is done with corkUnchecked() in upgrade. It steals cork. */
+            auto *newCorkedSocket = Super::corkedSocket();
+
+            /* If nobody is corked, it means most probably that large amounts of data has
+             * been written and the cork buffer has already been sent off and uncorked.
+             * We are done here, if that is the case. */
+            if (!newCorkedSocket) {
+                return this;
+            }
+
             /* Timeout on uncork failure, since most writes will succeed while corked */
-            auto [written, failed] = Super::uncork();
+            auto [written, failed] = static_cast<Super *>(newCorkedSocket)->uncork();
+
+            /* If we are no longer an HTTP socket then early return the new "this".
+             * We don't want to even overwrite timeout as it is set in upgrade already. */
+            if (this != newCorkedSocket) {
+                return static_cast<HttpResponse *>(newCorkedSocket);
+            }
+
             if (failed) {
                 /* For now we only have one single timeout so let's use it */
                 /* This behavior should equal the behavior in HttpContext when uncorking fails */

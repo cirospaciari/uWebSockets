@@ -123,6 +123,12 @@ protected:
         getLoopData()->corkedSocket = this;
     }
 
+    void uncorkWithoutSending() {
+        if (isCorked()) {
+            getLoopData()->corkedSocket = nullptr;
+        }
+    }
+
     /* Cork this socket. Only one socket may ever be corked per-loop at any given time */
     void cork() {
         /* Extra check for invalid corking of others */
@@ -133,6 +139,11 @@ protected:
 
         /* What if another socket is corked? */
         getLoopData()->corkedSocket = this;
+    }
+
+    /* Returns the corked socket or nullptr */
+    void *corkedSocket() {
+        return getLoopData()->corkedSocket;
     }
 
     /* Returns wheter we are corked or not */
