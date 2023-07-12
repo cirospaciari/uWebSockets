@@ -132,7 +132,7 @@ protected:
     /* Cork this socket. Only one socket may ever be corked per-loop at any given time */
     void cork() {
         /* Extra check for invalid corking of others */
-        if (!isCorked() && !canCork()) {
+        if (getLoopData()->corkOffset && getLoopData()->corkedSocket != this) {
             std::cerr << "Error: Cork buffer must not be acquired without checking canCork!" << std::endl;
             std::terminate();
         }
