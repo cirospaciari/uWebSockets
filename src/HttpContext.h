@@ -105,7 +105,6 @@ private:
 
         /* Handle HTTP data streams */
         us_socket_context_on_data(SSL, getSocketContext(), [](us_socket_t *s, char *data, int length) {
-
             // total overhead is about 210k down to 180k
             // ~210k req/sec is the original perf with write in data
             // ~200k req/sec is with cork and formatting
@@ -207,9 +206,17 @@ private:
                 /* Continue parsing */
                 return s;
 
-            }, [httpResponseData](void *user, std::string_view data, bool fin) -> void * {
+            }, [httpResponseData, httpContextData](void *user, std::string_view data, bool fin) -> void * {
                 /* We always get an empty chunk even if there is no data */
+
                 if (httpResponseData->inStream) {
+                    if (httpContextData->maxContentLength > 0) {
+                        httpResponseData->total_received_bytes += data.length();
+                        if(httpResponseData->total_received_bytes > httpContextData->maxContentLength) {
+                            us_socket_close(SSL, (us_socket_t *) user, 0, nullptr);
+                            return nullptr;
+                        }
+                    }
 
                     /* Todo: can this handle timeout for non-post as well? */
                     if (fin) {
@@ -464,6 +471,10 @@ public:
     /* Listen to unix domain socket using this HttpContext */
     us_listen_socket_t *listen(const char *path, int options) {
         return us_socket_context_listen_unix(SSL, getSocketContext(), path, options, sizeof(HttpResponseData<SSL>));
+    }
+
+    void setMaxContentLength(size_t maxContentLength) {
+        getSocketContextData()->maxContentLength = maxContentLength;
     }
 };
 

@@ -133,6 +133,13 @@ public:
         return std::move(*this);
     }
 
+    /* Sets the max content length */
+    TemplatedApp &&setMaxContentLength(size_t maxContentLength) {
+        httpContext->setMaxContentLength(maxContentLength);
+
+        return std::move(*this);
+    }
+
     /* Returns the SSL_CTX of this app, or nullptr. */
     void *getNativeHandle() {
         return us_socket_context_get_native_handle(SSL, (struct us_socket_context_t *) httpContext);

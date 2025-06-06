@@ -1357,4 +1357,10 @@ extern "C"
         });
 
     }
+
+    void uws_set_max_content_length(uws_app_t *app, size_t maxContenLength)
+    {
+        uWS::App *uwsApp = (uWS::App *)app;
+        uwsApp->setMaxContentLength(maxContenLength);
+    }
 }

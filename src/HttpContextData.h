@@ -49,6 +49,8 @@ private:
     HttpRouter<RouterData> router;
     void *upgradedWebSocket = nullptr;
     bool isParsingHttp = false;
+
+    size_t maxContentLength = 0;
 };
 
 }

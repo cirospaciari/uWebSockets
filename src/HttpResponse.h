@@ -567,8 +567,9 @@ public:
         HttpResponseData<SSL> *data = getHttpResponseData();
         data->inStream = std::move(handler);
 
-        /* Always reset this counter here */
+        /* Always reset these counters here */
         data->received_bytes_per_timeout = 0;
+        data->total_received_bytes = 0;
     }
 };
 

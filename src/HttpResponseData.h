@@ -82,6 +82,9 @@ private:
     /* Let's track number of bytes since last timeout reset in data handler */
     unsigned int received_bytes_per_timeout = 0;
 
+    /* Let's track the total number of bytes received in data handler */
+    size_t total_received_bytes = 0;
+
     /* Current state (content-length sent, status sent, write called, etc */
     int state = 0;
 
